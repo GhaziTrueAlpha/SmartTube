@@ -792,6 +792,19 @@ public class Utils {
         inputConnection.sendKeyEvent(ku);
     }
 
+    /**
+     * Wakes up the TV/monitor from sleep by injecting KEYCODE_WAKEUP.
+     * Best-effort: may not work on Android 13+ (requires INJECT_EVENTS permission).
+     */
+    public static void wakeUpDevice() {
+        try {
+            Instrumentation instrumentation = new Instrumentation();
+            instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_WAKEUP);
+        } catch (SecurityException e) {
+            Log.e(TAG, "Wake up failed: " + e.getMessage());
+        }
+    }
+
     public static void showNotCompatibleMessage(Context context, int msgResId) {
         MessageHelpers.showMessage(context, String.format("%s '%s'",
                 context.getString(R.string.not_compatible_with),

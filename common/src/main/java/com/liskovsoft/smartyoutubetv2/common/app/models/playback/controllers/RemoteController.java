@@ -532,6 +532,7 @@ public class RemoteController extends BasePlayerController implements OnDataChan
     }
 
     private void movePlayerToForeground() {
+        Utils.wakeUpDevice();
         getViewManager().movePlayerToForeground();
         // Device wake fix when player isn't started yet or been closed
         if (getPlayer() == null || !Utils.checkActivity(getActivity())) {
