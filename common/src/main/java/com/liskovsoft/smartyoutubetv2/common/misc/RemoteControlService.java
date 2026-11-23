@@ -105,7 +105,6 @@ public class RemoteControlService extends Service {
         return START_STICKY;
     }
 
-    @Override
 
     /**
      * DIAL makes the device show up in the cast dialog of YouTube apps on the same network.
