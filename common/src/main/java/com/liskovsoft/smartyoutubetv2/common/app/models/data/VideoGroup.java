@@ -432,7 +432,7 @@ public class VideoGroup {
 
     public boolean isEmpty() {
         try {
-            return mVideos == null || mVideos.isEmpty();
+            return mVideos == null || mVideos.isEmpty() || (mVideos.size() == 1 && mVideos.get(0).isContinuation());
         } catch (ConcurrentModificationException e) {
             e.printStackTrace();
         }
@@ -454,7 +454,7 @@ public class VideoGroup {
     }
 
     public void add(int idx, Video video) {
-        if (video == null || video.isEmpty() || isChannelBlocked(video) || isWatchedAndRecommended(video)) {
+        if (video == null || video.isEmpty() || isChannelBlocked(video) || isWatchedSuggestion(video)) {
             return;
         }
 
@@ -467,7 +467,8 @@ public class VideoGroup {
         video.setGroup(this);
 
         VideoStateService stateService = VideoStateService.instance(null);
-        if (stateService != null && (video.percentWatched == -1 || video.percentWatched == 100)) {
+        // Keep remote completion when an older local playback position exists.
+        if (stateService != null && video.percentWatched == -1) {
             State state = stateService.getByVideoId(video.videoId);
             video.sync(state);
         }
@@ -493,21 +494,21 @@ public class VideoGroup {
         return blockedChannelData.containsChannel(channelId, channelName);
     }
 
-    private boolean isWatchedAndRecommended(Video video) {
+    private boolean isWatchedSuggestion(Video video) {
         if (video == null) {
             return false;
         }
 
         int type = getType();
 
-        //if (type != MediaGroup.TYPE_HOME && type != MediaGroup.TYPE_SUGGESTIONS) {
-        //    return false;
-        //}
-
-        if (type != MediaGroup.TYPE_SUGGESTIONS) {
+        if (type != MediaGroup.TYPE_HOME && type != MediaGroup.TYPE_SUGGESTIONS) {
             return false;
         }
 
-        return video.percentWatched > 95;
+        if (type == MediaGroup.TYPE_HOME && getPosition() > 0) {
+            return false;
+        }
+
+        return video.percentWatched > 95 || video.percentWatched == Video.MIN_WATCHED_PERCENT;
     }
 }

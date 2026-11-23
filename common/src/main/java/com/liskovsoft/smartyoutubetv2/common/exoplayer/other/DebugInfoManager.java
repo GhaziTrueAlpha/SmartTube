@@ -24,6 +24,8 @@ import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.decoder.DecoderCounters;
 import com.google.android.exoplayer2.mediacodec.MediaCodecInfo;
 import com.google.android.exoplayer2.source.TrackGroupArray;
+import com.google.android.exoplayer2.source.dash.manifest.DashManifest;
+import com.google.android.exoplayer2.source.sabr.manifest.SabrManifest;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.liskovsoft.sharedutils.cronet.CronetManager;
 import com.liskovsoft.sharedutils.helpers.AppInfoHelpers;
@@ -369,10 +371,21 @@ public final class DebugInfoManager implements Runnable, Player.EventListener {
     private void appendVersion() {
         //appendRow("ExoPlayer version", ExoPlayerLibraryInfo.VERSION);
         PlayerTweaksData playerTweaksData = PlayerTweaksData.instance(mContext);
-        appendRow("ExoPlayer engine",
-                playerTweaksData.getPlayerDataSource() == PlayerTweaksData.PLAYER_DATA_SOURCE_OKHTTP ? "OkHttp" :
-                        playerTweaksData.getPlayerDataSource() == PlayerTweaksData.PLAYER_DATA_SOURCE_CRONET
-                                && CronetManager.getEngine(mContext) != null ? "Cronet" : "Default");
+        String engine = playerTweaksData.getPlayerDataSource() == PlayerTweaksData.PLAYER_DATA_SOURCE_OKHTTP ? "OkHttp" :
+                playerTweaksData.getPlayerDataSource() == PlayerTweaksData.PLAYER_DATA_SOURCE_CRONET
+                        && CronetManager.getEngine(mContext) != null ? "Cronet" : "Default";
+        String protocol;
+        Object manifest = mPlayer.getCurrentManifest();
+        if (manifest == null) {
+            protocol = "NONE";
+        } else if (manifest instanceof DashManifest) {
+            protocol = "DASH";
+        } else if (manifest instanceof SabrManifest) {
+            protocol = "SABR";
+        } else {
+            protocol = "HLS";
+        }
+        appendRow("ExoPlayer", "engine=" + engine + ";protocol=" + protocol);
         //appendRow("Cronet version", ApiVersion.getCronetVersion());
         //appendRow("OkHttp version", Version.userAgent());
         appendRow(mAppVersion, AppInfoHelpers.getAppVersionName(mContext));
@@ -391,17 +404,6 @@ public final class DebugInfoManager implements Runnable, Player.EventListener {
         //appendRow("Max heap memory (MB)", DeviceHelpers.getMaxHeapMemoryMB()); // Growth Limit
         //appendRow("Allocated heap memory (MB)", DeviceHelpers.getAllocatedHeapMemoryMB());
         appendRow("Memory (Alloc/Max, MB)", DeviceHelpers.getAllocatedHeapMemoryMB() + "/" + DeviceHelpers.getMaxHeapMemoryMB());
-    }
-
-    private void appendWebViewInfo() {
-        appendRow("Pot supported", MediaServiceData.instance().isPotSupported());
-    }
-
-    private void appendClientType() {
-        int videoInfoType = MediaServiceData.instance().getVideoInfoType();
-        String clientType = videoInfoType != -1 && videoInfoType < AppClient.values().length ? AppClient.values()[videoInfoType].name() : "default";
-
-        appendRow("Client type", clientType);
     }
 
     private void appendPlayerVersion() {
@@ -561,10 +563,10 @@ public final class DebugInfoManager implements Runnable, Player.EventListener {
     }
 
     private String getClientType() {
-        int videoInfoType = MediaServiceData.instance().getVideoInfoType();
-        String clientType = videoInfoType != -1 && videoInfoType < AppClient.values().length ? AppClient.values()[videoInfoType].name() : "default";
+        int clientType = MediaServiceData.instance().getClientType();
+        String clientTypeName = clientType != -1 && clientType < AppClient.values().length ? AppClient.values()[clientType].name() : "default";
 
-        return clientType;
+        return clientTypeName;
     }
 
     private CharSequence getPlayerVersion() {

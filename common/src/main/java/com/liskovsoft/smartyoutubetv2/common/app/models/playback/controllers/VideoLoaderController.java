@@ -35,7 +35,6 @@ public class VideoLoaderController extends BasePlayerController {
     private Video mPendingVideo;
     private SuggestionsController mSuggestionsController;
     private ErrorFixerController mErrorFixerController;
-    private long mSleepTimerStartMs;
     private Disposable mFormatInfoAction;
     private final Runnable mReloadVideo = () -> {
         getMainController().onNewVideo(getVideo());
@@ -70,7 +69,6 @@ public class VideoLoaderController extends BasePlayerController {
     public void onInit() {
         mSuggestionsController = getController(SuggestionsController.class);
         mErrorFixerController = getController(ErrorFixerController.class);
-        mSleepTimerStartMs = System.currentTimeMillis();
     }
 
     @Override
@@ -103,7 +101,6 @@ public class VideoLoaderController extends BasePlayerController {
         
         loadVideo(Helpers.firstNonNull(mPendingVideo, getVideo()));
         getPlayer().setButtonState(R.id.action_repeat, getPlayerData().getPlaybackMode());
-        mSleepTimerStartMs = System.currentTimeMillis();
         mPendingVideo = null;
     }
 
@@ -196,36 +193,9 @@ public class VideoLoaderController extends BasePlayerController {
 
     @Override
     public boolean onKeyDown(int keyCode) {
-        mSleepTimerStartMs = System.currentTimeMillis();
-
-        // Remove error msg if needed
-        if (getPlayer() != null && getPlayerData().getSleepTimerHours() > 0) {
-            getPlayer().setVideo(getVideo());
-        }
-
         Utils.removeCallbacks(mRestartEngine);
 
         return false;
-    }
-
-    @Override
-    public void onTickle() {
-        checkSleepTimer();
-    }
-
-    private void checkSleepTimer() {
-        if (getPlayer() == null) {
-            return;
-        }
-
-        float sleepHours = getPlayerData().getSleepTimerHours();
-        if (sleepHours > 0 && System.currentTimeMillis() - mSleepTimerStartMs > sleepHours * 60 * 60 * 1_000) {
-            getPlayer().setPlayWhenReady(false);
-            getPlayer().setTitle(getContext().getString(R.string.player_sleep_timer)
-                    + " (" + getContext().getResources().getQuantityString(R.plurals.hours, (int) sleepHours, Helpers.toString(sleepHours)) + ")");
-            getPlayer().showOverlay(true);
-            Helpers.enableScreensaver(getActivity());
-        }
     }
 
     /**
@@ -286,6 +256,7 @@ public class VideoLoaderController extends BasePlayerController {
         disposeActions();
 
         ServiceManager service = YouTubeServiceManager.instance();
+        service.allowRestrictedVideos(!getGeneralData().isChildModeEnabled());
         MediaItemService mediaItemManager = service.getMediaItemService();
         mFormatInfoAction = mediaItemManager.getFormatInfoObserve(video.videoId)
                 .subscribe(this::processFormatInfo,
@@ -327,13 +298,7 @@ public class VideoLoaderController extends BasePlayerController {
             // 18+ video or the video is hidden/removed
             player.showOverlay(true);
             loadNextVideo(5_000);
-
-            //if (formatInfo.isUnknownError()) { // the bot error or the video not available
-            //    scheduleRebootAppTimer(5_000);
-            //} else { // 18+ video or the video is hidden/removed
-            //    scheduleNextVideoTimer(5_000);
-            //}
-        } else if (acceptAdaptiveFormats(formatInfo) && formatInfo.containsDashFormats()) {
+        } else if (acceptAdaptiveFormats(formatInfo) && formatInfo.containsDashFormats() && !preferSabrLive(formatInfo)) {
             Log.d(TAG, "Loading regular video in dash format...");
 
             if (getPlayerTweaksData().isHighBitrateFormatsEnabled() && formatInfo.hasExtendedHlsFormats()) {
@@ -553,6 +518,10 @@ public class VideoLoaderController extends BasePlayerController {
         }
 
         return true;
+    }
+
+    private boolean preferSabrLive(MediaItemFormatInfo formatInfo) {
+        return getMediaServiceData().isSabrLiveEnabled() && formatInfo.isLive() && formatInfo.containsSabrFormats();
     }
 
     private boolean acceptDashLive(MediaItemFormatInfo formatInfo) {

@@ -11,9 +11,11 @@ import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.offline.FilterableManifest;
 import com.google.android.exoplayer2.offline.StreamKey;
 import com.google.android.exoplayer2.source.sabr.parser.SabrStream;
+import com.google.android.exoplayer2.source.sabr.parser.exceptions.SabrStreamError;
 import com.google.android.exoplayer2.source.sabr.parser.misc.EnabledTrackTypes;
 import com.google.android.exoplayer2.source.sabr.parser.misc.Utils;
 import com.google.android.exoplayer2.source.sabr.parser.models.FormatSelector;
+import com.google.android.exoplayer2.source.sabr.parser.models.SabrFormatMetadata;
 import com.google.android.exoplayer2.source.sabr.protos.misc.FormatId;
 import com.google.android.exoplayer2.source.sabr.protos.videostreaming.BufferedRange;
 import com.google.android.exoplayer2.source.sabr.protos.videostreaming.ClientAbrState;
@@ -80,8 +82,10 @@ public class SabrManifest implements FilterableManifest<SabrManifest> {
      */
     public final long minUpdatePeriodMs;
 
+    @Nullable public final String visitorCookie;
+
     private final String videoId;
-    private final String serverAbrStreamingUrl;
+    private final SabrCdnSelector cdnSelector;
     private final String videoPlaybackUstreamerConfig;
     private final String poToken;
     private final ClientInfo clientInfo;
@@ -104,6 +108,29 @@ public class SabrManifest implements FilterableManifest<SabrManifest> {
             String poToken,
             String videoId,
             ClientInfo clientInfo) {
+        this(
+                availabilityStartTimeMs, durationMs, minBufferTimeMs, dynamic, minUpdatePeriodMs,
+                timeShiftBufferDepthMs, suggestedPresentationDelayMs, publishTimeMs, periods,
+                serverAbrStreamingUrl, videoPlaybackUstreamerConfig, poToken, videoId, clientInfo,
+                null);
+    }
+
+    public SabrManifest(
+            long availabilityStartTimeMs,
+            long durationMs,
+            long minBufferTimeMs,
+            boolean dynamic,
+            long minUpdatePeriodMs,
+            long timeShiftBufferDepthMs,
+            long suggestedPresentationDelayMs,
+            long publishTimeMs,
+            List<Period> periods,
+            String serverAbrStreamingUrl,
+            String videoPlaybackUstreamerConfig,
+            String poToken,
+            String videoId,
+            ClientInfo clientInfo,
+            @Nullable String visitorCookie) {
         this.availabilityStartTimeMs = availabilityStartTimeMs;
         this.durationMs = durationMs;
         this.minBufferTimeMs = minBufferTimeMs;
@@ -114,10 +141,11 @@ public class SabrManifest implements FilterableManifest<SabrManifest> {
         this.publishTimeMs = publishTimeMs;
         this.periods = periods;
         this.videoId = videoId;
-        this.serverAbrStreamingUrl = serverAbrStreamingUrl;
+        this.cdnSelector = new SabrCdnSelector(serverAbrStreamingUrl);
         this.videoPlaybackUstreamerConfig = videoPlaybackUstreamerConfig;
         this.clientInfo = clientInfo;
         this.poToken = poToken;
+        this.visitorCookie = visitorCookie;
         this.sabrStreams = new HashMap<>();
         this.emptySelector = new FormatSelector("ignored", true);
     }
@@ -149,7 +177,7 @@ public class SabrManifest implements FilterableManifest<SabrManifest> {
         return videoId;
     }
 
-    public SabrStream getSabrStream(int trackType) {
+    public synchronized SabrStream getSabrStream(int trackType) {
         SabrStream sabrStream = sabrStreams.get(trackType);
 
         if (sabrStream != null) {
@@ -157,7 +185,7 @@ public class SabrManifest implements FilterableManifest<SabrManifest> {
         }
 
         sabrStream = new SabrStream(
-                serverAbrStreamingUrl,
+                cdnSelector.getCurrentUrl(),
                 videoPlaybackUstreamerConfig,
                 clientInfo,
                 -1,
@@ -174,11 +202,86 @@ public class SabrManifest implements FilterableManifest<SabrManifest> {
         return sabrStream;
     }
 
+    /**
+     * Moves all active SABR streams to the next media network advertised by the
+     * signed URL. A failure from an earlier in-flight request is also retryable
+     * after another track has already advanced the selector.
+     */
+    public synchronized boolean maybeUseNextCdn(String failedUrl) {
+        if (!cdnSelector.maybeAdvance(failedUrl)) {
+            return false;
+        }
+
+        String nextUrl = cdnSelector.getCurrentUrl();
+
+        for (SabrStream sabrStream : sabrStreams.values()) {
+            sabrStream.setServerAbrStreamingUrl(nextUrl);
+        }
+
+        return true;
+    }
+
+    /**
+     * @return target length of a live segment or -1 if unknown yet (no streams created)
+     */
+    public synchronized long getLiveSegmentDurationMs() {
+        for (SabrStream sabrStream : sabrStreams.values()) {
+            return sabrStream.getLiveSegmentDurationMs();
+        }
+
+        return -1;
+    }
+
+    /**
+     * @return position to start a live stream from or -1 if unknown yet
+     */
+    public synchronized long getLiveStartPositionMs() {
+        for (SabrStream sabrStream : sabrStreams.values()) {
+            long positionMs = sabrStream.getLiveStartPositionMs();
+
+            if (positionMs != -1) {
+                return positionMs;
+            }
+        }
+
+        return -1;
+    }
+
+    /**
+     * @return latest known live edge position or -1 if unknown yet
+     */
+    public synchronized long getLiveEdgeMs() {
+        long result = -1;
+
+        for (SabrStream sabrStream : sabrStreams.values()) {
+            result = Math.max(result, sabrStream.getLiveEdgeMs());
+        }
+
+        return result;
+    }
+
+    /**
+     * The player timeline is the absolute stream time.
+     * but only the last part of it can be rewound (the DVR ["archive"] window).
+     * This is where that part starts.
+     *
+     * @return start of the seekable window or -1 if unknown yet
+     */
+    public synchronized long getLiveWindowStartMs() {
+        long result = -1;
+
+        for (SabrStream sabrStream : sabrStreams.values()) {
+            result = Math.max(result, sabrStream.getMinSeekableTimeMs());
+        }
+
+        return result;
+    }
+
     public int getSabrRequestNumber() {
         return sabrRequestNumber;
     }
 
-    public String getRequestUrl(int trackType) {
+    public synchronized String getRequestUrl(int trackType) {
         SabrStream activeStream = sabrStreams.get(trackType);
 
         if (activeStream == null) {
@@ -186,6 +289,14 @@ public class SabrManifest implements FilterableManifest<SabrManifest> {
         }
 
         return Utils.updateQuery(activeStream.getUrl(), "rn", ++sabrRequestNumber);
+    }
+
+    public SabrStreamError getUnthrownError() {
+        for (SabrStream sabrStream : sabrStreams.values()) {
+            return sabrStream.getUnthrownError();
+        }
+
+        return null;
     }
 
     public VideoPlaybackAbrRequest createVideoPlaybackAbrRequest(int trackType, boolean isInit) {
@@ -223,6 +334,21 @@ public class SabrManifest implements FilterableManifest<SabrManifest> {
             clientAbrStateBuilder
                     .setStickyResolution(height)
                     .setLastManualSelectedResolution(height);
+        }
+
+        if (trackType == C.TRACK_TYPE_AUDIO
+                && selectedAudioFormat != null
+                && selectedAudioFormat.metadata != null) {
+            for (int i = 0; i < selectedAudioFormat.metadata.length(); i++) {
+                if (selectedAudioFormat.metadata.get(i) instanceof SabrFormatMetadata) {
+                    String audioTrackId = ((SabrFormatMetadata)
+                            selectedAudioFormat.metadata.get(i)).audioTrackId;
+
+                    if (audioTrackId != null && !audioTrackId.isEmpty()) {
+                        clientAbrStateBuilder.setAudioTrackId(audioTrackId);
+                    }
+                }
+            }
         }
 
         ClientAbrState clientAbrState = clientAbrStateBuilder.build();

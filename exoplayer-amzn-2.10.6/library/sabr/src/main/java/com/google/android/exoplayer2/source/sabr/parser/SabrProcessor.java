@@ -5,6 +5,7 @@ import android.util.Base64;
 import androidx.annotation.NonNull;
 
 import com.google.android.exoplayer2.extractor.ExtractorInput;
+import com.google.android.exoplayer2.source.sabr.parser.exceptions.SabrPoTokenError;
 import com.google.android.exoplayer2.source.sabr.parser.exceptions.SabrStreamError;
 import com.google.android.exoplayer2.source.sabr.parser.misc.Utils;
 import com.google.android.exoplayer2.source.sabr.parser.models.ConsumedRange;
@@ -53,6 +54,7 @@ import java.util.Set;
 public class SabrProcessor {
     private static final String TAG = SabrProcessor.class.getSimpleName();
     private static final int NO_VALUE = -1;
+    private static final long LIVE_START_OFFSET_MS = 10_000;
     private final String videoPlaybackUstreamerConfig;
     private final ClientInfo clientInfo;
     private FormatSelector formatSelector;
@@ -74,6 +76,7 @@ public class SabrProcessor {
     private final Set<Integer> sabrContextsToSend;
     private final Map<Integer, MediaHeader> initializedFormats;
     private final FormatSelector emptySelector;
+    private SabrStreamError unthrownError;
 
     public SabrProcessor(
             @NonNull String videoPlaybackUstreamerConfig,
@@ -237,7 +240,7 @@ public class SabrProcessor {
                 startMs,
                 initializedFormat,
                 actualDurationMs == 0 || actualDurationMs == NO_VALUE,
-                false,
+                initializedFormat.discard,
                 false,
                 mediaHeader.hasSequenceLmt() ? mediaHeader.getSequenceLmt() : NO_VALUE
         );
@@ -265,6 +268,9 @@ public class SabrProcessor {
 
         Log.d(TAG, "Initialized Media Header %s for sequence %s. Segment: %s",
                 Utils.toLong(mediaHeader.getHeaderId()), sequenceNumber, segment);
+//        Log.d(TAG, "Header times: seq=%s, hasStartMs=%s, startMs=%s, hasTimeRange=%s, actualDurationMs=%s, grid=%s",
+//                sequenceNumber, mediaHeader.hasStartMs(), startMs, timeRange != null, actualDurationMs,
+//                (long) sequenceNumber * getLiveSegmentTargetDurationSec() * 1_000L);
 
         return result;
     }
@@ -295,7 +301,7 @@ public class SabrProcessor {
                     segmentStartBytes
             );
         } else {
-            Log.e(TAG, "processMedia: part discarded. contentLength: %s, itag: %s", contentLength, segment.formatId.getItag());
+            Log.d(TAG, "processMedia: part discarded. contentLength: %s, itag: %s", contentLength, segment.formatId.getItag());
             data.skipFully(contentLength);
         }
 
@@ -310,7 +316,23 @@ public class SabrProcessor {
         }
 
         if (!segment.mediaHeader.getIsInitSeg()) {
-            initializedFormats.put(segment.mediaHeader.getItag(), segment.mediaHeader);
+            MediaHeader mediaHeader = segment.mediaHeader;
+
+            // Live headers have neither start_ms nor duration_ms (the start is in time_range). Without them the next
+            // request is made from 0 and the chunk times stay unset. The real start is NOT on the target duration grid
+            // (start = number * target + offset), so use it as is. Aim the next request
+            // just inside the next segment: the exact boundary still belongs to the previous one and the server would resend it forever.
+            if (isLive()) {
+                long targetMs = getLiveSegmentTargetDurationSec() * 1_000L;
+                long toNextSegmentMs = targetMs + getLiveSegmentTargetDurationToleranceMs();
+
+                mediaHeader = mediaHeader.toBuilder()
+                        .setStartMs(segment.startMs)
+                        .setDurationMs(toNextSegmentMs)
+                        .build();
+            }
+
+            initializedFormats.put(mediaHeader.getItag(), mediaHeader);
         }
 
         Log.d(TAG, "MediaEnd for %s (sequence %s, data length = %s)",
@@ -429,6 +451,9 @@ public class SabrProcessor {
             result.sabrPart = new PoTokenStatusSabrPart(resultStatus);
         }
 
+        // NOTE: PoToken attestation may fail a few times before passing, so a failure isn't proof it won't succeed.
+        this.unthrownError = status != Status.OK ? new SabrPoTokenError("PoToken error: " + resultStatus) : null;
+
         return result;
     }
 
@@ -459,7 +484,7 @@ public class SabrProcessor {
         // Given we only provide one FormatId currently, and this should not occur in this case,
         // we will mark this as not currently supported and bail.
         for (SelectedFormat selectedFormat : selectedFormats.values()) {
-            if (selectedFormat.formatSelector == formatSelector) {
+            if (selectedFormat.formatSelector == formatSelector && !formatSelector.isDiscardMedia()) {
                 throw new SabrStreamError("Server changed format. Changing formats is not currently supported");
             }
         }
@@ -545,8 +570,7 @@ public class SabrProcessor {
         // If the current player time is less than the min dvr time, simulate a server seek to the min dvr time.
         // The server SHOULD send us a SABR_SEEK part in this case, but it does not always happen (e.g. ANDROID_VR)
         // The server SHOULD NOT send us segments before the min dvr time, so we should assume that the player time is correct.
-        long minSeekableTimeMs = Utils.ticksToMs(liveMetadata.hasMinSeekableTimeTicks() ? liveMetadata.getMinSeekableTimeTicks() : -1,
-                liveMetadata.hasMinSeekableTimescale() ? liveMetadata.getMinSeekableTimescale() : -1);
+        long minSeekableTimeMs = getMinSeekableTimeMs();
         if (minSeekableTimeMs != -1 && playerTimeMs > 0 && playerTimeMs < minSeekableTimeMs) {
             Log.d(TAG, "Player time %s is less than min seekable time %s, simulating server seek",
                     playerTimeMs, minSeekableTimeMs);
@@ -637,6 +661,36 @@ public class SabrProcessor {
         }
     }
 
+    /**
+     * @return position to start a live stream from (near the live edge) or -1 if unknown.
+     * Without it the first request is made at 0 and the server answers with the head segment out of order.
+     */
+    public long getLiveStartPositionMs() {
+        long maxSeekableTimeMs = getMaxSeekableTimeMs();
+
+        // The seekable window may start later than max - offset
+        return maxSeekableTimeMs > 0 ? Math.max(Math.max(getMinSeekableTimeMs(), 0), maxSeekableTimeMs - LIVE_START_OFFSET_MS) : -1;
+    }
+
+    /**
+     * @return latest max seekable position or -1 if unknown
+     */
+    public long getLiveEdgeMs() {
+        return getMaxSeekableTimeMs();
+    }
+
+    public long getMinSeekableTimeMs() {
+        return liveMetadata == null ? -1 : Utils.ticksToMs(
+                liveMetadata.hasMinSeekableTimeTicks() ? liveMetadata.getMinSeekableTimeTicks() : -1,
+                liveMetadata.hasMinSeekableTimescale() ? liveMetadata.getMinSeekableTimescale() : -1);
+    }
+
+    public long getMaxSeekableTimeMs() {
+        return liveMetadata == null ? -1 : Utils.ticksToMs(
+                liveMetadata.hasMaxSeekableTimeTicks() ? liveMetadata.getMaxSeekableTimeTicks() : -1,
+                liveMetadata.hasMaxSeekableTimescale() ? liveMetadata.getMaxSeekableTimescale() : -1);
+    }
+
     public boolean isLive() {
         return liveMetadata != null || isLive;
     }
@@ -663,6 +717,15 @@ public class SabrProcessor {
         return mediaHeader.getStartMs() + mediaHeader.getDurationMs();
     }
 
+    /**
+     * False until a media segment is received for the format (or after {@link #reset(int)}).
+     */
+    public boolean hasSegmentStartTime(int iTag) {
+        MediaHeader mediaHeader = initializedFormats.get(iTag);
+
+        return mediaHeader != null && mediaHeader.getStartMs() != -1;
+    }
+
     public long getSegmentDurationMs(int iTag) {
         MediaHeader mediaHeader = initializedFormats.get(iTag);
 
@@ -677,6 +740,10 @@ public class SabrProcessor {
         return nextRequestPolicy != null ? nextRequestPolicy.getBackoffTimeMs() : 0;
     }
 
+    public SabrStreamError getUnthrownError() {
+        return unthrownError;
+    }
+
     //private List<FormatId> createSelectedFormatIds() {
     //    List<FormatId> result = new ArrayList<>();
     //
@@ -688,20 +755,20 @@ public class SabrProcessor {
     //}
 
     public StreamerContext createStreamerContext() {
-        return StreamerContext.newBuilder()
-                .setPoToken(
-                        ByteString.copyFrom(
-                                Base64.decode(poToken, Base64.URL_SAFE)
-                        )
-                )
+        StreamerContext.Builder builder = StreamerContext.newBuilder()
                 .setPlaybackCookie(
                         nextRequestPolicy != null ?
                                 nextRequestPolicy.getPlaybackCookie().toByteString() : ByteString.EMPTY
                 )
                 .setClientInfo(clientInfo)
                 .addAllSabrContexts(createSabrContexts())
-                .addAllUnsentSabrContexts(createUnsentSabrContexts())
-                .build();
+                .addAllUnsentSabrContexts(createUnsentSabrContexts());
+
+        if (poToken != null && !poToken.isEmpty()) {
+            builder.setPoToken(ByteString.copyFrom(Base64.decode(poToken, Base64.URL_SAFE)));
+        }
+
+        return builder.build();
     }
 
     private List<SabrContext> createSabrContexts() {
@@ -742,7 +809,11 @@ public class SabrProcessor {
             return formatSelector;
         }
 
-        return null;
+        // Some SABR responses contain initialization data for the other enabled
+        // track even when this chunk source requested only audio or only video.
+        // Keep the server informed that the format was consumed, but do not pass
+        // cross-track media to this source's extractor.
+        return emptySelector;
     }
 
     public @NonNull FormatSelector getFormatSelector() {

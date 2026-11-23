@@ -37,9 +37,9 @@ public final class Video {
     public static final String PLAYLIST_LIKED_MUSIC = "LM";
     public static final String TERTIARY_TEXT_DELIM = "•";
     public static final long MAX_LIVE_DURATION_MS = 24 * 60 * 60 * 1_000;
+    public static final float MIN_WATCHED_PERCENT = 10; // min value for immediately closed videos
     private static final int MAX_AUTHOR_LENGTH_CHARS = 20;
     private static final String BLACK_PLACEHOLDER_URL = "https://via.placeholder.com/1280x720/000000/000000";
-    private static final float RESTORE_POSITION_PERCENTS = 10; // min value for immediately closed videos
     public int id;
     public String title;
     public String deArrowTitle;
@@ -558,6 +558,13 @@ public final class Video {
                 (durationMs <= 0 || isSynced) && (hasPlaylist() || hasChannel() || hasNestedItems());
     }
 
+    /**
+     * Continuation button at the end of rows appeared on Home
+     */
+    public boolean isContinuation() {
+        return isChannel() && cardImageUrl == null && belongsToHome();
+    }
+
     public boolean isFullLive() {
         return isLive && startSegmentNum == 0;
     }
@@ -743,9 +750,11 @@ public final class Video {
             isLiveEnd = true;
         }
 
+        // NOTE: Skip unplayable to preserve an error message
         // NOTE: Skip upcoming (no media) because default title more informative (e.g. has scheduled time).
         // NOTE: Upcoming videos metadata wrongly reported as live
-        if (metadataTitle == null) {
+        boolean keepExistingTitle = metadataTitle != null && (isUnplayable || isUpcoming);
+        if (!keepExistingTitle) {
             metadataTitle = metadata.getTitle();
         }
         metadataSecondTitle = metadata.getSecondTitle();
@@ -885,7 +894,7 @@ public final class Video {
 
     public long getLiveDurationMs() {
         if (startTimeMs == 0) {
-            return 0;
+            return -1;
         }
 
         // Disable updates if stream ended while watching
@@ -894,9 +903,9 @@ public final class Video {
             return durationMs > 0 ? durationMs : liveDurationMs;
         }
 
-        // Is stream real length may exceeds calculated length???
+        // Is stream real length may exceed calculated length?
         liveDurationMs = System.currentTimeMillis() - startTimeMs;
-        return liveDurationMs > 0 ? liveDurationMs : 0;
+        return liveDurationMs > 0 ? liveDurationMs : -1;
     }
 
     public long getDurationMs() {
@@ -913,7 +922,7 @@ public final class Video {
 
     private long getPositionFromPercentWatched() {
         // Ignore up to 10% watched because the video might be opened on phone and closed immediately.
-        if (percentWatched <= RESTORE_POSITION_PERCENTS || percentWatched >= 100) {
+        if (percentWatched <= MIN_WATCHED_PERCENT || percentWatched >= 100) {
             return 0;
         }
 
@@ -926,8 +935,11 @@ public final class Video {
     }
 
     public void sync(VideoStateService.State state) {
-        if (state != null && state.durationMs != -1) {
-            percentWatched = state.positionMs / (state.durationMs / 100f);
+        if (state != null) {
+            long realDurationMs = state.durationMs != -1 ? state.durationMs : getDurationMs();
+            if (realDurationMs > 0) {
+                percentWatched = state.positionMs / (realDurationMs / 100f);
+            }
         }
     }
 

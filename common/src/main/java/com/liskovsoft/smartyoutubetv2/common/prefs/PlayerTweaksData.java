@@ -2,6 +2,7 @@ package com.liskovsoft.smartyoutubetv2.common.prefs;
 
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.os.Build.VERSION;
 
 import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.sharedutils.prefs.GlobalPreferences;
@@ -103,12 +104,14 @@ public class PlayerTweaksData implements ProfileChangeListener {
     private boolean mIsQuickSkipShortsAltEnabled;
     private boolean mIsQuickSkipVideosEnabled;
     private boolean mIsQuickSkipVideosAltEnabled;
+    private boolean mIsQuickSkipChaptersEnabled;
     private boolean mIsOculusQuestFixEnabled;
     private boolean mIsAudioFocusEnabled;
     private boolean mIsNetworkErrorFixingDisabled;
     private boolean mIsDontResizeVideoToFitDialogEnabled;
     private boolean mIsSuggestionsHorizontallyScrolled;
     private boolean mIsQueueRespectsPlaybackMode;
+    private boolean mIsLiveEdgeEnabled;
     private final Runnable mPersistDataInt = this::persistDataInt;
 
     private PlayerTweaksData(Context context) {
@@ -622,9 +625,20 @@ public class PlayerTweaksData implements ProfileChangeListener {
         persistData();
     }
 
+    public boolean isQuickSkipChaptersEnabled() {
+        return mIsQuickSkipChaptersEnabled;
+    }
+
+    public void setQuickSkipChaptersEnabled(boolean enable) {
+        resetDpadUpDownSettings();
+        mIsQuickSkipChaptersEnabled = enable;
+        persistData();
+    }
+
     private void resetQuickSkipVideosSettings() {
         mIsQuickSkipVideosEnabled = false;
         mIsQuickSkipVideosAltEnabled = false;
+        mIsQuickSkipChaptersEnabled = false;
     }
 
     public void resetDpadLeftRightSettings() {
@@ -636,6 +650,7 @@ public class PlayerTweaksData implements ProfileChangeListener {
     public void resetDpadUpDownSettings() {
         mIsQuickSkipShortsAltEnabled = false;
         mIsQuickSkipVideosAltEnabled = false;
+        mIsQuickSkipChaptersEnabled = false;
         persistData();
     }
 
@@ -691,6 +706,15 @@ public class PlayerTweaksData implements ProfileChangeListener {
         persistData();
     }
 
+    public boolean isLiveEdgeEnabled() {
+        return mIsLiveEdgeEnabled;
+    }
+
+    public void setLiveEdgeEnabled(boolean enable) {
+        mIsLiveEdgeEnabled = enable;
+        persistData();
+    }
+
     private void restoreData() {
         String data = mPrefs.getProfileData(VIDEO_PLAYER_TWEAKS_DATA);
 
@@ -701,7 +725,8 @@ public class PlayerTweaksData implements ProfileChangeListener {
         mIsSnapToVsyncDisabled = Helpers.parseBoolean(split, 2, false);
         mIsProfileLevelCheckSkipped = Helpers.parseBoolean(split, 3, false);
         mIsSWDecoderForced = Helpers.parseBoolean(split, 4, false);
-        mIsTextureViewEnabled = Helpers.parseBoolean(split, 5, false);
+        // TextureView could fix ExoPlayer crashes on older Android
+        mIsTextureViewEnabled = Helpers.parseBoolean(split, 5, VERSION.SDK_INT <= 19);
         // Need to be enabled (?) on older version of ExoPlayer (e.g. 2.10.6).
         // It's because there's no tweaks for modern devices.
         mIsSetOutputSurfaceWorkaroundEnabled = Helpers.parseBoolean(split, 7, true);
@@ -723,7 +748,7 @@ public class PlayerTweaksData implements ProfileChangeListener {
         mIsSpeedButtonOldBehaviorEnabled = Helpers.parseBoolean(split, 23, false);
         mIsButtonLongClickEnabled = Helpers.parseBoolean(split, 24, true);
         mIsLongSpeedListEnabled = Helpers.parseBoolean(split, 25, true);
-        mPlayerDataSource = Helpers.parseInt(split, 26, Utils.skipCronet() ? PLAYER_DATA_SOURCE_DEFAULT : PLAYER_DATA_SOURCE_CRONET);
+        mPlayerDataSource = Helpers.parseInt(split, 26, Utils.getFasterDataSource());
         //mPlayerDataSource = Helpers.parseInt(split, 26, PLAYER_DATA_SOURCE_DEFAULT);
         mUnlockAllFormats = Helpers.parseBoolean(split, 27, false);
         mIsDashUrlStreamsForced = Helpers.parseBoolean(split, 28, false);
@@ -762,6 +787,9 @@ public class PlayerTweaksData implements ProfileChangeListener {
         mIsQuickSkipVideosAltEnabled = Helpers.parseBoolean(split, 58, false);
         mIsAudioTimeStretchingEnabled = Helpers.parseBoolean(split, 59, true);
         mIsQueueRespectsPlaybackMode = Helpers.parseBoolean(split, 60, false);
+        //mIsSabrLiveEnabled = Helpers.parseBoolean(split, 61, false);
+        mIsLiveEdgeEnabled = Helpers.parseBoolean(split, 62, false);
+        mIsQuickSkipChaptersEnabled = Helpers.parseBoolean(split, 63, false);
 
         updateDefaultValues();
     }
@@ -789,7 +817,8 @@ public class PlayerTweaksData implements ProfileChangeListener {
                 mIsUnsafeAudioFormatsEnabled, null, mIsLoopShortsEnabled, mIsQuickSkipShortsEnabled, mIsRememberPositionOfLiveVideosEnabled,
                 mIsOculusQuestFixEnabled, null, mIsExtraLongSpeedListEnabled, mIsQuickSkipVideosEnabled, mIsNetworkErrorFixingDisabled, mIsCommentsPlacedLeft,
                 null, mIsAudioFocusEnabled, mIsDontResizeVideoToFitDialogEnabled, mIsSuggestionsHorizontallyScrolled,
-                mIsQuickSkipShortsAltEnabled, mIsQuickSkipVideosAltEnabled, mIsAudioTimeStretchingEnabled, mIsQueueRespectsPlaybackMode
+                mIsQuickSkipShortsAltEnabled, mIsQuickSkipVideosAltEnabled, mIsAudioTimeStretchingEnabled, mIsQueueRespectsPlaybackMode, null,
+                mIsLiveEdgeEnabled, mIsQuickSkipChaptersEnabled
                 ));
     }
 

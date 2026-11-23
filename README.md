@@ -47,12 +47,12 @@ Give it a try!
 
 **Do you have any question?** Ctrl+F or ⌘F this readme first!
 
-[**Installation**](#installation) | [**Official Site**](https://smarttubeapp.github.io) | [**Donation**](#donation) | [**FAQ**](#faq) | [Support / Chat](#support) | [Build](#build) | [Translate the app](https://jtbrinkmann.de/tools/android-strings.xml-translator.html) | [Changelog](https://t.me/s/SmartTubeNewsEN) | [Liability](#liability)
+[**Installation**](#installation) | [**Site**](https://smarttubeapp.github.io) | [**Contributors**](#contributors) | [**Donation**](#donation) | [**FAQ**](#faq) | [Support / Chat](#support) | [Build](#build) | [Translate the app](https://jtbrinkmann.de/tools/android-strings.xml-translator.html) | [Changelog](https://t.me/s/SmartTubeNewsEN) | [Liability](#liability)
 
 
 ## Device support
 > [!IMPORTANT]  
-> Starting in October 2025 new Amazon FireTV devices no longer run Android under the hood. SmartTube will **not** be compatibile with the Fire Stick 4k Select and newer devices which run Amazon's own VegaOS.
+> Starting in October 2025 new Amazon FireTV devices no longer run Android under the hood. SmartTube will **not** be compatible with the Fire Stick 4k Select and newer devices which run Amazon's own VegaOS.
 
 ![Device support image](images/new/compatibility.png)
 * **Supported:** all Android TVs and TV boxes (incl. All FireTV devices released before Oct. 2025, NVIDIA Shield & Chromecast with Google TV), even older ones with Android 4.3 (Kitkat).
@@ -158,6 +158,8 @@ To cast videos from your phone (or other devices), you must link that device to 
 
 Due to technical limitations, you need to open the app on the TV before casting; SmartTube cannot automatically wake up the TV.
 
+If you want sharing from your phone to also wake up the TV and launch SmartTube, you can use the third-party app [TubeBeam](https://github.com/jagjordi/tubebeam). It adds a _Send to TV_ entry to Android's share sheet and sends the link to the TV over ADB instead of casting (requires _USB debugging_ / _Network debugging_ to be enabled in the TV's developer options).
+
 
 ### Picture-in-Picture (PiP)
 
@@ -166,7 +168,7 @@ SmartTube supports playing videos in PiP mode. This needs to be enabled under _S
 
 ### Adjust Speed
 
-You can adjust the playback speed pressing the speed-indicator icon (gauge) in the top row of the player. This is remembered across videos. Some speeds may case frame drops, this is a known issue.
+You can adjust the playback speed pressing the speed-indicator icon (gauge) in the top row of the player. This is remembered across videos. Some speeds may cause frame drops, this is a known issue.
 
 
 ### Voice Search
@@ -191,14 +193,19 @@ To enable global voice search, an additional app must be installed alongside Sma
 2. Uninstall the official YouTube app using root (`adb shell pm uninstall com.google.android.youtube.tv`)
 3. Download and install the ATV Bridge SmartTube app: https://kutt.to/stn_bridge_atv (e.g. via _Downloader by AFTVnews_)
 
+## Contributors
+
+Major contributors to this project:
+
+- [@pixkk](https://github.com/pixkk): SABR streaming, TV PoToken/Challenge generation 
+- [@Jupiops](https://github.com/Jupiops): SABR CDN support
 
 ## Donation
 
 If you want to support my developments you are welcome to buy me a cup of coffee :)
 
-- [**Patreon (Visa, Mastercard, PayPal)**](https://www.patreon.com/smarttube)  
-- **PayPal**: firsth<!-- abc@def -->ash@gmai<!-- @abc.com -->l.com  
-<!-- > [**Buy me a coffee**](https://www.buymeacoffee.com/stube) -->  
+- **PayPal (main)**: firsth<!-- abc@def -->ash@gmai<!-- @abc.com -->l.com  
+- [**Patreon (alternative, free)**](https://www.patreon.com/smarttube)
 - **BTC**: 1JAT5VVWarVBkpVbNDn8UA8HXNdrukuBSx  
 - **LTC**: ltc1qgc24eq9jl9cq78qnd5jpqhemkajg9vudwyd8pw  
 - **ETH**: 0xe455E21a085ae195a097cd4F456051A9916A5064  
@@ -219,8 +226,7 @@ You can report in our Telegram group or via [issue tracker on Github](https://gi
 
 - **Telegram group (international)**: [@SmartTubeEN](http://t.me/SmartTubeEN)  
 - **Discord group (international)**: [SmartTube Official](https://discord.gg/Wt8HDDej5z)  
-- **Telegram group (RU/UA)**: [@SmartTubeUA](http://t.me/SmartTubeUA)  
-- **Email**: firsth<!-- abc@def -->ash@gmai<!-- @abc.com -->l.com
+- **Telegram group (RU/UA)**: [@SmartTubeUA](http://t.me/SmartTubeUA)
 
 The international group is in **English only**. But don't worry if your English is not perfect, we have a friendly international community.
 
@@ -232,7 +238,7 @@ SmartTube is developed single-handedly; there is no larger team or company behin
 
 ## Build
     
-**NOTE: OpenJDK 14 or older (!) is required. Newer JDK could cause app crash!**  
+**NOTE: OpenJDK 17 is used by the CI build (see `.github/workflows/CI.yml`). The old requirement of OpenJDK 14 or older no longer applies.**  
 To build and install debug version, run these commands:
 
 ```
@@ -338,16 +344,16 @@ A: It can be, but it takes someone to do it, similar to the above FAQ-entry. Sma
 
 ### Q: Can I install this on a Samsung Tizen TV / LG webOS TV / Roku / iOS / toaster?
 
-A: No, this only works on **Android** devices. If you look at an Android TV's product page, it usually says clearly that it's based on Android. The app **cannot** easily be ported over to other plattforms and we have no plans to even try. **Please do not ask**. Instead, you can connect a separate TV stick or TV box to your TV.
+A: No, this only works on **Android** devices. If you look at an Android TV's product page, it usually says clearly that it's based on Android. The app **cannot** easily be ported over to other platforms and we have no plans to even try. **Please do not ask**. Instead, you can connect a separate TV stick or TV box to your TV.
 
 
 ### Q: Can I install this on a smartphone? / Can you add portrait mode? / Scrolling doesn't work.
 
 A: **Big No**. This app is **not** for smartphones, we offer **zero support** for that.
 
-You **can cast** videos **from** your smartphone to a TV / TV box running SmartTube, though. Just use the official YouTube app or [ReVanced](https://github.com/ReVanced), see [the casting section](#casting) for more information.
+You **can cast** videos **from** your smartphone to a TV / TV box running SmartTube, though. Just use the official YouTube app, [Morphe](https://github.com/MorpheApp) or [ReVanced](https://github.com/ReVanced), see [the casting section](#casting) for more information.
 
-**There will not be a phone version.** You can use [ReVanced](https://github.com/ReVanced), [Pure Tuber](https://play.google.com/store/apps/details?id=free.tube.premium.advanced.tuber), [LibreTube](https://github.com/libre-tube/LibreTube), [NewPipe](https://newpipe.schabi.org), or [NewPipe x SponsorBlock](https://github.com/polymorphicshade/NewPipe#newpipe-x-sponsorblock) instead. Please go to their respective support chats for help.
+**There will not be a phone version.** You can use [Morphe](https://github.com/MorpheApp), [ReVanced](https://github.com/ReVanced), [Pure Tuber](https://play.google.com/store/apps/details?id=free.tube.premium.advanced.tuber), [LibreTube](https://github.com/libre-tube/LibreTube), [NewTube](https://github.com/aleixrodriala/newtube), [NewPipe](https://newpipe.schabi.org), or [NewPipe x SponsorBlock](https://github.com/polymorphicshade/NewPipe#newpipe-x-sponsorblock) instead. Please go to their respective support chats for help.
 
 
 ### Q: Can I install this on a tablet / car screen / smartphone with docking station?
@@ -383,15 +389,15 @@ A: Please read the [Casting](#casting) section.
 
 ### Q: I get an error saying "Sign in to confirm you're not a bot"
 
-A: Your IP address range might be temporaily/permanently blocked by YouTube from watching videos if you not signed in to your account.
+A: Your IP address range might be temporarily/permanently blocked by YouTube from watching videos if you not signed in to your account.
 
 ### Q: The video is buffering a lot
 
-A: The issue might not be specific to SmartTube, as other unofficial YouTube apps also report this issue. It seems uncommon nowadays, but was very present in the 2nd quarter of 2021. Some users or devices seem to be more affected then others. The official YouTube app & website are apparently only rarely affected. The root cause of the issue is currently unclear, but it appears to be a server-side thing on YouTube's end. Possibly, YouTube is discriminating 3rd party apps.
+A: The issue might not be specific to SmartTube, as other unofficial YouTube apps also report this issue. It seems uncommon nowadays, but was very present in the 2nd quarter of 2021. Some users or devices seem to be more affected than others. The official YouTube app & website are apparently only rarely affected. The root cause of the issue is currently unclear, but it appears to be a server-side thing on YouTube's end. Possibly, YouTube is discriminating 3rd party apps.
 
 For now, try to see if it helps to:
 
-- Reduce the resolution (or chance it back)
+- Reduce the resolution (or change it back)
 - Change the video format to AVC
 - Increase the buffer in the settings
 - Hit the back button and try playing the video again
@@ -422,7 +428,7 @@ A: This is planned, but not available yet (sorry 🙇‍♀️). However, you ca
 
 ### Q: Why does it skip video segments?
 
-A: SmartTube has a feature called **SponsorBlock**. You can select categories should be skipped, if any. See the [SponsorBlock section](#sponsorblock) for more details.
+A: SmartTube has a feature called **SponsorBlock**. You can select which categories should be skipped, if any. See the [SponsorBlock section](#sponsorblock) for more details.
 
 
 ### Q: How to start the next video automatically / stop after every video?

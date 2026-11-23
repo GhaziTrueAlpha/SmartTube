@@ -60,6 +60,7 @@
     <string name="dialog_account_none">None</string>
     <string name="dialog_remove_account">Sign out</string>
     <string name="dialog_add_account">Sign in</string>
+    <string name="default_option">Default</string>
     <string name="default_lang">Default</string>
     <string name="original_lang">Original</string>
     <string name="dialog_select_language">Language</string>
@@ -370,7 +371,6 @@
     <string name="proxy_not_supported">Use Web Proxy (Needs Android 4.4+)</string>
     <string name="proxy_test_btn">Test</string>
     <string name="proxy_settings_title">Proxy Server Settings</string>
-    <string name="proxy_test_urls">https://www.youtube.com\nhttps://www.google.com</string>
     <string name="proxy_test_cancelled">Test #%d: cancelled.</string>
     <string name="proxy_type_invalid">Proxy type not set.</string>
     <string name="proxy_host_invalid">Proxy host not set.</string>
@@ -417,8 +417,8 @@
     <string name="remember_position_of_short_videos">Remember position of short videos (less than 5 min)</string>
     <string name="remember_position_of_live_videos">Remember live stream position</string>
     <string name="player_show_tooltips">Show button tooltips</string>
-    <string name="action_like_unset">removed like</string>
-    <string name="action_dislike_unset">removed dislike</string>
+    <string name="action_like_unset">Removed like</string>
+    <string name="action_dislike_unset">Removed dislike</string>
     <string name="various_buttons">Buttons at the top of the main window</string>
     <string name="not_compatible_with">Selected option isn\'t compatible with</string>
     <string name="subtitle_position">Subtitle bottom shift</string>
@@ -649,6 +649,7 @@
     <string name="hide_unwanted_content">Hide content</string>
     <string name="hide_watched_from_home">Hide watched videos from Home</string>
     <string name="hide_watched_from_watch_later">Remove watched videos from Watch later playlist</string>
+    <string name="remote_control_dial">Show in YouTube cast list (DIAL)</string>
     <string name="remote_control_permission">Background Remote control requires Overlay permission</string>
     <string name="login_from_browser">Login from browser</string>
     <string name="disable_remote_history">Disable history when using remote control</string>
@@ -679,6 +680,7 @@
     <string name="fullscreen_mode">Fullscreen mode (without system bars)</string>
     <string name="player_only_mode">Show only the player if the video is opened outside of the app</string>
     <string name="pinned_channel_rows">Show pinned channel as rows</string>
+    <string name="preferred_dns">Preferred DNS</string>
     <string name="prefer_google_dns">Prefer Google DNS</string>
     <string name="prefer_ipv4">Prefer IPv4 DNS</string>
     <string name="prefer_ipv4_desc">Could fix situations when the app isn\'t working at all.\nNote. May cause hangs and crashes (especially on Android 8 devices or Dune HD)</string>
@@ -749,6 +751,10 @@
     <string name="enable_conscrypt_desc">Improves HTTPS, TLS, and VPN compatibility on some devices, but may occasionally cause playback issues or slower network performance</string>
     <string name="network_settings">Network settings</string>
     <string name="comments_disabled">Comments are disabled for this video</string>
+    <string name="prefer_sabr_live">SABR live streams</string>
+    <string name="prefer_sabr_live_desc">Experimental SABR live streams. Enable only if you have trouble with regular live streams.</string>
+    <string name="live_edge">Keep up with live</string>
+    <string name="player_quick_skip_chapters">Next chapter with Up button</string>
     <plurals name="hours">
         <item quantity="one">%s hour</item>
         <item quantity="other">%s hours</item>

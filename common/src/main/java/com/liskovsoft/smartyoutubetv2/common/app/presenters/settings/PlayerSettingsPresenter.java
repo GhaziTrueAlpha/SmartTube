@@ -59,7 +59,7 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
         appendPlaybackModeCategory(settingsPresenter);
         appendVideoPresetsCategory(settingsPresenter);
         appendPlayerButtonsCategory(settingsPresenter);
-        appendNetworkEngineCategory(settingsPresenter);
+        //appendNetworkEngineCategory(settingsPresenter);
         appendVideoBufferCategory(settingsPresenter);
         appendVideoZoomCategory(settingsPresenter);
         appendVideoSpeedCategory(settingsPresenter);
@@ -349,6 +349,10 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
     private void appendMiscCategory(AppDialogPresenter settingsPresenter) {
         List<OptionItem> options = new ArrayList<>();
 
+        options.add(UiOptionItem.from(getContext().getString(R.string.live_edge),
+                option -> mPlayerTweaksData.setLiveEdgeEnabled(option.isSelected()),
+                mPlayerTweaksData.isLiveEdgeEnabled()));
+
         options.add(UiOptionItem.from(getContext().getString(R.string.suggestions_horizontally_scrolled),
                 option -> mPlayerTweaksData.setSuggestionsHorizontallyScrolled(option.isSelected()),
                 mPlayerTweaksData.isSuggestionsHorizontallyScrolled()));
@@ -492,15 +496,20 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
     private void appendDeveloperCategory(AppDialogPresenter settingsPresenter) {
         List<OptionItem> options = new ArrayList<>();
 
+        options.add(UiOptionItem.from(getContext().getString(R.string.prefer_sabr_live),
+                getContext().getString(R.string.prefer_sabr_live_desc),
+                option -> mMediaServiceData.setSabrLiveEnabled(option.isSelected()),
+                mMediaServiceData.isSabrLiveEnabled()));
+
         options.add(UiOptionItem.from(getContext().getString(R.string.playback_notifications_fix),
                 getContext().getString(R.string.playback_notifications_fix_desc),
                 option -> mPlayerTweaksData.setPlaybackNotificationsDisabled(option.isSelected()),
                 mPlayerTweaksData.isPlaybackNotificationsDisabled()));
 
-        options.add(UiOptionItem.from(getContext().getString(R.string.disable_network_error_fixing),
-                getContext().getString(R.string.disable_network_error_fixing_desc),
-                option -> mPlayerTweaksData.setNetworkErrorFixingDisabled(option.isSelected()),
-                mPlayerTweaksData.isNetworkErrorFixingDisabled()));
+        //options.add(UiOptionItem.from(getContext().getString(R.string.disable_network_error_fixing),
+        //        getContext().getString(R.string.disable_network_error_fixing_desc),
+        //        option -> mPlayerTweaksData.setNetworkErrorFixingDisabled(option.isSelected()),
+        //        mPlayerTweaksData.isNetworkErrorFixingDisabled()));
 
         // Oculus Quest fix: back button not closing the activity
         options.add(UiOptionItem.from(getContext().getString(R.string.oculus_quest_fix),
@@ -510,21 +519,25 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
                 },
                 mPlayerTweaksData.isOculusQuestFixEnabled()));
 
-        options.add(UiOptionItem.from(getContext().getString(R.string.prefer_ipv4),
-                getContext().getString(R.string.prefer_ipv4_desc),
-                option -> {
-                    mPlayerTweaksData.setPreferredDnsType(option.isSelected() ? PlayerTweaksData.DNS_TYPE_IPV4 : PlayerTweaksData.DNS_TYPE_SYSTEM);
-                    mRestartApp = true;
-                },
-                mPlayerTweaksData.getPreferredDnsType() == PlayerTweaksData.DNS_TYPE_IPV4));
-
-        options.add(UiOptionItem.from(getContext().getString(R.string.prefer_google_dns),
-                getContext().getString(R.string.prefer_ipv4_desc),
-                option -> {
-                    mPlayerTweaksData.setPreferredDnsType(option.isSelected() ? PlayerTweaksData.DNS_TYPE_GOOGLE : PlayerTweaksData.DNS_TYPE_SYSTEM);
-                    mRestartApp = true;
-                },
-                mPlayerTweaksData.getPreferredDnsType() == PlayerTweaksData.DNS_TYPE_GOOGLE));
+        //options.add(UiOptionItem.from(getContext().getString(R.string.prefer_ipv4),
+        //        getContext().getString(R.string.prefer_ipv4_desc),
+        //        option -> {
+        //            // OkHttp is the only engine that supports custom DNS
+        //            mPlayerTweaksData.setPlayerDataSource(option.isSelected() ? PlayerTweaksData.PLAYER_DATA_SOURCE_OKHTTP : Utils.getFasterDataSource());
+        //            mPlayerTweaksData.setPreferredDnsType(option.isSelected() ? PlayerTweaksData.DNS_TYPE_IPV4 : PlayerTweaksData.DNS_TYPE_SYSTEM);
+        //            mRestartApp = true;
+        //        },
+        //        mPlayerTweaksData.getPreferredDnsType() == PlayerTweaksData.DNS_TYPE_IPV4));
+        //
+        //options.add(UiOptionItem.from(getContext().getString(R.string.prefer_google_dns),
+        //        getContext().getString(R.string.prefer_ipv4_desc),
+        //        option -> {
+        //            // OkHttp is the only engine that supports custom DNS
+        //            mPlayerTweaksData.setPlayerDataSource(option.isSelected() ? PlayerTweaksData.PLAYER_DATA_SOURCE_OKHTTP : Utils.getFasterDataSource());
+        //            mPlayerTweaksData.setPreferredDnsType(option.isSelected() ? PlayerTweaksData.DNS_TYPE_GOOGLE : PlayerTweaksData.DNS_TYPE_SYSTEM);
+        //            mRestartApp = true;
+        //        },
+        //        mPlayerTweaksData.getPreferredDnsType() == PlayerTweaksData.DNS_TYPE_GOOGLE));
 
         options.add(UiOptionItem.from(getContext().getString(R.string.audio_sync_fix),
                 getContext().getString(R.string.audio_sync_fix_desc),

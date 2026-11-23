@@ -3,7 +3,7 @@ package com.google.android.exoplayer2.source.sabr.parser;
 import androidx.annotation.NonNull;
 
 import com.google.android.exoplayer2.extractor.ExtractorInput;
-import com.google.android.exoplayer2.source.sabr.parser.exceptions.MediaSegmentMismatchError;
+import com.google.android.exoplayer2.source.sabr.parser.exceptions.SabrSegmentMismatchError;
 import com.google.android.exoplayer2.source.sabr.parser.exceptions.SabrStreamError;
 import com.google.android.exoplayer2.source.sabr.parser.models.FormatSelector;
 import com.google.android.exoplayer2.source.sabr.parser.parts.FormatInitializedSabrPart;
@@ -55,7 +55,7 @@ public class SabrStream {
             UMPPartId.SABR_REDIRECT,
             UMPPartId.FORMAT_INITIALIZATION_METADATA,
             UMPPartId.NEXT_REQUEST_POLICY,
-            //UMPPartId.LIVE_METADATA,
+            UMPPartId.LIVE_METADATA,
             //UMPPartId.SABR_SEEK,
             UMPPartId.SABR_ERROR,
             UMPPartId.SABR_CONTEXT_UPDATE,
@@ -178,12 +178,53 @@ public class SabrStream {
         return processor.getSegmentStartTimeMs(iTag);
     }
 
+    /**
+     * How far below the video's total duration (in ms) a seek target should be clamped when it
+     * would otherwise land at/past the end (see DefaultSabrChunkSource.getAdjustedSeekPositionUs()).
+     * Based on the same live-segment-target-duration estimate SabrProcessor uses for a segment's own duration.
+     * <p/>
+     * Currently unused - the fixed constant in DefaultSabrChunkSource was consistently smaller
+     * (safer) on tested content. Kept for future use.
+     */
+    public long getEndOfStreamSeekToleranceMs() {
+        return processor.getLiveSegmentTargetDurationSec() * 1_000L
+                - processor.getLiveSegmentTargetDurationToleranceMs();
+    }
+
+    public boolean isLive() {
+        return processor.isLive();
+    }
+
+    public long getLiveSegmentDurationMs() {
+        return processor.getLiveSegmentTargetDurationSec() * 1_000L;
+    }
+
+    public long getLiveStartPositionMs() {
+        return processor.getLiveStartPositionMs();
+    }
+
+    public long getLiveEdgeMs() {
+        return processor.getLiveEdgeMs();
+    }
+
+    public long getMinSeekableTimeMs() {
+        return processor.getMinSeekableTimeMs();
+    }
+
+    public boolean hasSegmentStartTime(int iTag) {
+        return processor.hasSegmentStartTime(iTag);
+    }
+
     public long getSegmentDurationMs(int iTag) {
         return processor.getSegmentDurationMs(iTag);
     }
 
     public int getBackoffTimeMs() {
         return processor.getBackoffTimeMs();
+    }
+
+    public SabrStreamError getUnthrownError() {
+        return processor.getUnthrownError();
     }
 
     public MediaHeader getInitializedFormat(int iTag) {
@@ -258,7 +299,7 @@ public class SabrStream {
             ProcessMediaHeaderResult result = processor.processMediaHeader(mediaHeader);
 
             return result.sabrPart;
-        } catch (MediaSegmentMismatchError e) {
+        } catch (SabrSegmentMismatchError e) {
             // For livestreams, the server may not know the exact segment for a given player time.
             // For segments near stream head, it estimates using segment duration, which can cause off-by-one segment mismatches.
             // If a segment is much longer or shorter than expected, the server may return a segment ahead or behind.
@@ -514,6 +555,10 @@ public class SabrStream {
 
     public String getUrl() {
         return this.url;
+    }
+
+    public void setServerAbrStreamingUrl(String url) {
+        setUrl(url);
     }
 
     private void setUrl(String url) {

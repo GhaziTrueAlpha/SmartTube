@@ -9,12 +9,14 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.drm.DrmInitData;
 import com.google.android.exoplayer2.drm.DrmInitData.SchemeData;
+import com.google.android.exoplayer2.metadata.Metadata;
 import com.google.android.exoplayer2.source.sabr.manifest.SegmentBase.SegmentList;
 import com.google.android.exoplayer2.source.sabr.manifest.SegmentBase.SegmentTemplate;
 import com.google.android.exoplayer2.source.sabr.manifest.SegmentBase.SegmentTimelineElement;
 import com.google.android.exoplayer2.source.sabr.manifest.SegmentBase.SingleSegmentBase;
 import com.google.android.exoplayer2.source.sabr.protos.videostreaming.StreamerContext.ClientInfo;
 import com.google.android.exoplayer2.source.sabr.protos.videostreaming.StreamerContext.ClientName;
+import com.google.android.exoplayer2.source.sabr.parser.models.SabrFormatMetadata;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.liskovsoft.mediaserviceinterfaces.data.MediaFormat;
 import com.liskovsoft.mediaserviceinterfaces.data.MediaItemFormatInfo;
@@ -88,7 +90,8 @@ public class SabrManifestParser {
                 formatInfo.getVideoPlaybackUstreamerConfig(),
                 formatInfo.getPoToken(),
                 formatInfo.getVideoId(),
-                createClientInfo(formatInfo));
+                createClientInfo(formatInfo),
+                formatInfo.getVisitorCookie());
     }
 
     private static long getDurationMs(MediaItemFormatInfo formatInfo) {
@@ -221,12 +224,15 @@ public class SabrManifestParser {
         // Increase offset a bit to compensate previous tweaks
         // Streams to check:
         // https://www.youtube.com/watch?v=drdemkJpgao
-        long offsetUnits = (long) segmentDurationUnits * mFormatInfo.getStartSegmentNum();
+        // Live segments: the chunk time from the server is absolute (since the stream start), but YouTube limits the viewing range.
+        // So don't shift the time and don't build the segment list: count the segments from the fixed segment duration.
+        long startSegmentNum = mFormatInfo.isLive() ? 0 : mFormatInfo.getStartSegmentNum();
+        long offsetUnits = (long) segmentDurationUnits * startSegmentNum;
 
         long timescale = unitsPerSecond;
         long presentationTimeOffset = offsetUnits;
         long duration = segmentDurationUnits;
-        long startNumber = mFormatInfo.getStartSegmentNum();
+        long startNumber = startSegmentNum;
         long endNumber = C.INDEX_UNSET;
         String url = mFormatInfo.getServerAbrStreamingUrl();
         UrlTemplate mediaTemplate = UrlTemplate.compile(url + "&sq=$Number$");
@@ -235,7 +241,7 @@ public class SabrManifestParser {
 
         RangedUri initialization = parseRangedUrl(format.getSourceUrl(), format.getInit());
 
-        List<SegmentTimelineElement> timeline = parseSegmentTimeline(offsetUnits, segmentDurationUnits, segmentCount);
+        List<SegmentTimelineElement> timeline = mFormatInfo.isLive() ? null : parseSegmentTimeline(offsetUnits, segmentDurationUnits, segmentCount);
 
         return new SegmentTemplate(
                 initialization,
@@ -387,6 +393,13 @@ public class SabrManifestParser {
                         codecs,
                         isDrc,
                         lastModified);
+
+        if (!TextUtils.isEmpty(mediaFormat.getXtags())
+                || !TextUtils.isEmpty(mediaFormat.getAudioTrackId())) {
+            format = format.copyWithMetadata(
+                    new Metadata(new SabrFormatMetadata(
+                            mediaFormat.getXtags(), mediaFormat.getAudioTrackId())));
+        }
 
         SegmentBase segmentBase = null;
 
@@ -707,7 +720,7 @@ public class SabrManifestParser {
         MediaItemFormatInfo.ClientInfo clientInfo = formatInfo.getClientInfo();
 
         return ClientInfo.newBuilder()
-                .setClientName(ClientName.valueOf(clientInfo.getClientName()))
+                .setClientName(ClientName.valueOf(clientInfo.getClientName().toUpperCase()))
                 .setClientVersion(clientInfo.getClientVersion())
                 .setOsName(clientInfo.getOsName())
                 .setOsVersion(clientInfo.getOsVersion())

@@ -9,12 +9,15 @@ import android.os.PowerManager;
 
 import androidx.annotation.Nullable;
 
+import com.liskovsoft.sharedutils.helpers.AppInfoHelpers;
 import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.sharedutils.mylogger.Log;
 import com.liskovsoft.smartyoutubetv2.common.R;
 import com.liskovsoft.smartyoutubetv2.common.app.presenters.PlaybackPresenter;
 import com.liskovsoft.smartyoutubetv2.common.app.views.ViewManager;
+import com.liskovsoft.smartyoutubetv2.common.prefs.RemoteControlData;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
+import com.liskovsoft.youtubeapi.service.YouTubeServiceManager;
 
 public class RemoteControlService extends Service {
     private static final String TAG = RemoteControlService.class.getSimpleName();
@@ -97,8 +100,29 @@ public class RemoteControlService extends Service {
 
         PlaybackPresenter.instance(getApplicationContext()); // init RemoteControlListener
         StreamReminderService.instance(getApplicationContext()).startStop(); // init reminder service
+        updateDialServer();
 
         return START_STICKY;
+    }
+
+    @Override
+    public void onDestroy() {
+        DialServer.startStop(false, null);
+        super.onDestroy();
+    }
+
+    /**
+     * DIAL makes the device show up in the cast dialog of YouTube apps on the same network.
+     */
+    private void updateDialServer() {
+        Context context = getApplicationContext();
+        RemoteControlData data = RemoteControlData.instance(context);
+        DialServer.startStop(data.isDialEnabled(), () -> new DialServer(
+                context,
+                data.getDialUdn(),
+                String.format("%s (%s)", Helpers.getUserDeviceName(context), AppInfoHelpers.getAppLabel(context)),
+                YouTubeServiceManager.instance().getRemoteControlService(),
+                () -> ViewManager.instance(context).moveAppToForeground()));
     }
 
     private Notification createNotification() {
