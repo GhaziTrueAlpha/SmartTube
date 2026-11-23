@@ -53,7 +53,7 @@ public class RemoteControlService extends Service {
     @Override
     public void onDestroy() {
         releaseWakeLock();
-
+        DialServer.startStop(false, null);
         super.onDestroy();
     }
 
@@ -106,10 +106,6 @@ public class RemoteControlService extends Service {
     }
 
     @Override
-    public void onDestroy() {
-        DialServer.startStop(false, null);
-        super.onDestroy();
-    }
 
     /**
      * DIAL makes the device show up in the cast dialog of YouTube apps on the same network.
