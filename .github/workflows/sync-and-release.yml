@@ -64,8 +64,8 @@ jobs:
           CUSTOM_TAG="${UPSTREAM_TAG}-custom"
           echo "upstream_tag=${UPSTREAM_TAG}" >> "$GITHUB_OUTPUT"
 
-          if gh release view "$CUSTOM_TAG" >/dev/null 2>&1; then
-            echo "Release ${CUSTOM_TAG} already exists in this fork."
+          if gh release view "$CUSTOM_TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release ${CUSTOM_TAG} already exists in ${{ github.repository }}."
             if [ "${{ inputs.force_build }}" = "true" ]; then
               echo "Force build requested; using tag ${CUSTOM_TAG}-r${{ github.run_number }}."
               echo "release_tag=${CUSTOM_TAG}-r${{ github.run_number }}" >> "$GITHUB_OUTPUT"
@@ -134,6 +134,7 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
 
             gh issue create \
+              --repo "${{ github.repository }}" \
               --title "Merge conflict syncing upstream SmartTube ${UPSTREAM_TAG}" \
               --body "Automatic merge from ${UPSTREAM_REPO} (${UPSTREAM_TAG}) left unresolved conflicts in: ${REMAINING}" \
               || echo "Note: Enable Issues in repo Settings to receive conflict alert issues."
@@ -203,5 +204,7 @@ jobs:
 
           ls -la "${APK_FILES[@]}"
           gh release create "$RELEASE_TAG" "${APK_FILES[@]}" \
+            --repo "${{ github.repository }}" \
             --title "SmartTube ${UPSTREAM_TAG} (Custom Build - ${FLAVOR})" \
             --notes "Automated build merging upstream [${UPSTREAM_REPO} ${UPSTREAM_TAG}](https://github.com/${UPSTREAM_REPO}/releases/tag/${UPSTREAM_TAG}) with custom fork changes from \`${FORK_BRANCH}\`."
+            
