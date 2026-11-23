@@ -79,7 +79,7 @@ jobs:
             echo "should_build=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Sync Upstream Changes (Auto-Resolve Submodules & Keep Fork Fixes)
+      - name: Sync Upstream Changes (Keep Fork Fixes & Sync Submodules)
         if: steps.check.outputs.should_build == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -96,15 +96,14 @@ jobs:
           # while pulling all non-conflicting upstream updates normally.
           set +e
           git merge -X ours --no-commit --no-ff "upstream/${UPSTREAM_BRANCH}"
-          MERGE_STATUS=$?
           set -e
 
-          # Auto-resolve submodule pointer conflicts (e.g. MediaServiceCore, SharedModules)
-          # by taking upstream's latest submodule commit.
-          if [ $MERGE_STATUS -ne 0 ]; then
-            for sub in $(git diff --name-only --diff-filter=U); do
-              if git ls-files --stage "$sub" | grep -q '^160000 '; then
-                echo "Auto-resolving submodule conflict in ${sub} using upstream/${UPSTREAM_BRANCH}..."
+          # Always sync all submodules (e.g. MediaServiceCore, SharedModules) to
+          # upstream's exact commit pointers so upstream code matches submodule APIs.
+          if [ -f .gitmodules ]; then
+            for sub in $(git config --file .gitmodules --get-regexp '^submodule\..*\.path$' | awk '{print $2}'); do
+              if git rev-parse --verify "upstream/${UPSTREAM_BRANCH}:${sub}" >/dev/null 2>&1; then
+                echo "Syncing submodule ${sub} to upstream/${UPSTREAM_BRANCH}..."
                 git checkout "upstream/${UPSTREAM_BRANCH}" -- "$sub"
                 git add "$sub"
               fi
@@ -135,9 +134,12 @@ jobs:
 
           if [ -f .git/MERGE_HEAD ]; then
             git commit --no-edit
+          elif ! git diff --cached --quiet; then
+            git commit -m "chore: sync submodules with upstream ${UPSTREAM_TAG}"
           fi
 
-          git submodule update --init --recursive
+          git submodule sync --recursive
+          git submodule update --init --recursive --force
           git push origin "${FORK_BRANCH}"
 
       - name: Set up JDK 17
