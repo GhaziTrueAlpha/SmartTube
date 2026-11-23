@@ -79,7 +79,7 @@ jobs:
             echo "should_build=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Sync Upstream Changes (Preserve Fork Commits)
+      - name: Sync Upstream Changes (Auto-Resolve Submodules & Keep Fork Fixes)
         if: steps.check.outputs.should_build == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -92,40 +92,53 @@ jobs:
             git remote set-url upstream "https://github.com/${UPSTREAM_REPO}.git"
           git fetch upstream "${UPSTREAM_BRANCH}" --tags
 
-          if git merge "upstream/${UPSTREAM_BRANCH}" --no-edit; then
-            echo "Merged upstream/${UPSTREAM_BRANCH} cleanly."
-            git submodule update --init --recursive
-            git push origin "${FORK_BRANCH}"
-          else
-            echo "Merge conflict detected while syncing ${UPSTREAM_TAG}."
-            CONFLICTS=$(git diff --name-only --diff-filter=U)
+          # Merge upstream; on conflicting code lines, keep our fork's fix (-X ours)
+          # while pulling all non-conflicting upstream updates normally.
+          set +e
+          git merge -X ours --no-commit --no-ff "upstream/${UPSTREAM_BRANCH}"
+          MERGE_STATUS=$?
+          set -e
+
+          # Auto-resolve submodule pointer conflicts (e.g. MediaServiceCore, SharedModules)
+          # by taking upstream's latest submodule commit.
+          if [ $MERGE_STATUS -ne 0 ]; then
+            for sub in $(git diff --name-only --diff-filter=U); do
+              if git ls-files --stage "$sub" | grep -q '^160000 '; then
+                echo "Auto-resolving submodule conflict in ${sub} using upstream/${UPSTREAM_BRANCH}..."
+                git checkout "upstream/${UPSTREAM_BRANCH}" -- "$sub"
+                git add "$sub"
+              fi
+            done
+          fi
+
+          # Check if any unresolved conflicts remain
+          REMAINING=$(git diff --name-only --diff-filter=U)
+          if [ -n "$REMAINING" ]; then
+            echo "Unresolved merge conflicts detected:"
+            echo "$REMAINING"
             git merge --abort
+
+            {
+              echo "### Merge Conflict Syncing Upstream ${UPSTREAM_TAG}"
+              echo "Unresolved files:"
+              echo '```'
+              echo "$REMAINING"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
 
             gh issue create \
               --title "Merge conflict syncing upstream SmartTube ${UPSTREAM_TAG}" \
-              --body "$(cat <<EOF
-          Automatic merge from \`${UPSTREAM_REPO}\` (\`${UPSTREAM_TAG}\`) hit a conflict in:
-
-          \`\`\`
-          ${CONFLICTS}
-          \`\`\`
-
-          Resolve locally in Termux and push back to \`${FORK_BRANCH}\`:
-
-          \`\`\`bash
-          git fetch upstream
-          git merge upstream/${UPSTREAM_BRANCH}
-          # Resolve the conflicted files above, then:
-          git add .
-          git commit -m "Merge upstream ${UPSTREAM_TAG}"
-          git push origin ${FORK_BRANCH}
-          \`\`\`
-
-          After pushing, trigger **Sync Upstream & Build Custom Release** manually in the Actions tab with \`force_build\` enabled.
-          EOF
-          )"
+              --body "Automatic merge from ${UPSTREAM_REPO} (${UPSTREAM_TAG}) left unresolved conflicts in: ${REMAINING}" \
+              || echo "Note: Enable Issues in repo Settings to receive conflict alert issues."
             exit 1
           fi
+
+          if [ -f .git/MERGE_HEAD ]; then
+            git commit --no-edit
+          fi
+
+          git submodule update --init --recursive
+          git push origin "${FORK_BRANCH}"
 
       - name: Set up JDK 17
         if: steps.check.outputs.should_build == 'true'
@@ -170,3 +183,4 @@ jobs:
           gh release create "$RELEASE_TAG" "$APK_DIR"/*.apk \
             --title "SmartTube ${UPSTREAM_TAG} (Custom Build - ${FLAVOR})" \
             --notes "Automated build merging upstream [${UPSTREAM_REPO} ${UPSTREAM_TAG}](https://github.com/${UPSTREAM_REPO}/releases/tag/${UPSTREAM_TAG}) with custom fork changes from \`${FORK_BRANCH}\`."
+            
